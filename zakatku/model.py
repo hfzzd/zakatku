@@ -24,6 +24,23 @@ def tambah_pembayaran(data, jenis, jumlah, tanggal, catatan=None):
     return entri
 
 
+def catat_harta(data, tanggal, tabungan, emas_gram):
+    """Catat satu titik harta (tanggal harta mencapai nisab).
+
+    Memanggil fungsi ini mengasumsikan total harta sudah mencapai nisab
+    dan tanggal sudah dalam format YYYY-MM-DD yang valid.
+    """
+    entri = {"tanggal": tanggal, "tabungan": tabungan, "emas_gram": emas_gram}
+    data.setdefault("harta", []).append(entri)
+    return entri
+
+
+def harta_terakhir(data):
+    """Catatan harta terbaru, atau None bila belum ada."""
+    riwayat = data.get("harta", [])
+    return riwayat[-1] if riwayat else None
+
+
 def _data_kosong():
     return {
         "config": {
@@ -31,6 +48,7 @@ def _data_kosong():
             "harga_beras": HARGA_BERAS_DEFAULT,
         },
         "pembayaran": [],
+        "harta": [],
     }
 
 
@@ -44,6 +62,7 @@ def muat(path):
     data["config"].setdefault("harga_emas", HARGA_EMAS_DEFAULT)
     data["config"].setdefault("harga_beras", HARGA_BERAS_DEFAULT)
     data.setdefault("pembayaran", [])
+    data.setdefault("harta", [])
     return data
 
 

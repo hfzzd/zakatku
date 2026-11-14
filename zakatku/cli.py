@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import date
 
-from . import __version__, model, zakat
+from . import __version__, model, pengingat, zakat
 
 
 def _angka(teks):
@@ -94,6 +94,23 @@ def _buat_parser():
     p_laporan = sub.add_parser("laporan", help="Laporan pembayaran zakat setahun.")
     p_laporan.add_argument("--tahun", type=_tahun, required=True,
                            help="Tahun laporan (YYYY).")
+
+    p_harta = sub.add_parser("harta", help="Catat / lihat harta untuk pengingat haul.")
+    sub_harta = p_harta.add_subparsers(dest="aksi_harta", required=True)
+    p_harta_catat = sub_harta.add_parser("catat", help="Catat tanggal harta mencapai nisab.")
+    p_harta_catat.add_argument("--tanggal", type=_tanggal, required=True,
+                               help="Tanggal harta mencapai nisab (YYYY-MM-DD).")
+    p_harta_catat.add_argument("--tabungan", type=_angka, required=True,
+                               help="Saldo tabungan saat itu (Rp).")
+    p_harta_catat.add_argument("--emas-gram", type=_angka, default=0,
+                               help="Berat emas saat itu (gram).")
+    sub_harta.add_parser("lihat", help="Tampilkan riwayat catatan harta.")
+
+    p_ingatkan = sub.add_parser("ingatkan", help="Pengingat haul, nisab & Idulfitri.")
+    p_ingatkan.add_argument("--penghasilan", type=_angka, default=None,
+                            help="Penghasilan bulanan (Rp) untuk cek nisab profesi.")
+    p_ingatkan.add_argument("--idulfitri", type=_tanggal, default=None,
+                            help="Tanggal Idulfitri (YYYY-MM-DD) untuk hitung mundur fitrah.")
     return parser
 
 
@@ -211,6 +228,95 @@ def _cmd_laporan(data, args):
     return 0
 
 
+def _cmd_harta_catat(data, path, args):
+    harga_emas = data["config"]["harga_emas"]
+    hasil = zakat.zakat_mal(args.tabungan, args.emas_gram, harga_emas)
+    if not hasil["wajib"]:
+        print(f"Total harta {zakat.format_rupiah(hasil['total'])} masih di bawah "
+              f"nisab {zakat.format_rupiah(hasil['nisab'])} — belum perlu dicatat.",
+              file=sys.stderr)
+        print("Catat lagi bila total harta sudah mencapai nisab.", file=sys.stderr)
+        return 1
+    tanggal = args.tanggal.isoformat()
+    model.catat_harta(data, tanggal, args.tabungan, args.emas_gram)
+    model.simpan(path, data)
+    haul = pengingat.tanggal_haul(args.tanggal)
+    print(f"Tercatat: harta {zakat.format_rupiah(hasil['total'])} mencapai nisab "
+          f"pada {tanggal}.")
+    print(f"Haul (1 tahun Hijriah) tercapai pada {haul.isoformat()}.")
+    return 0
+
+
+def _cmd_harta_lihat(data):
+    riwayat = data.get("harta", [])
+    if not riwayat:
+        print("Belum ada catatan harta.")
+        print("Catat dengan: zakatku harta catat --tanggal YYYY-MM-DD "
+              "--tabungan N [--emas-gram N]")
+        return 0
+    harga_emas = data["config"]["harga_emas"]
+    print("Riwayat catatan harta (tanggal mencapai nisab):")
+    for entri in riwayat:
+        hasil = zakat.zakat_mal(entri["tabungan"], entri["emas_gram"], harga_emas)
+        print(f"  {entri['tanggal']}  total {zakat.format_rupiah(hasil['total'])} "
+              f"(tabungan {zakat.format_rupiah(entri['tabungan'])}, "
+              f"emas {_rapi(entri['emas_gram'])} gram)")
+    return 0
+
+
+def _cmd_ingatkan(data, args):
+    hari_ini = date.today()
+    ada_info = False
+
+    harta = model.harta_terakhir(data)
+    if harta is not None:
+        ada_info = True
+        mulai = date.fromisoformat(harta["tanggal"])
+        status = pengingat.status_haul(mulai, hari_ini)
+        print(f"Zakat mal — harta mencapai nisab pada {status['tanggal_mulai']}.")
+        if status["sudah_haul"]:
+            print(f"  Sudah haul sejak {status['tanggal_haul']} "
+                  f"({-status['hari_lagi']} hari lalu) — zakat mal wajib dibayar "
+                  f"bila harta masih di atas nisab.")
+        else:
+            print(f"  Haul tercapai {status['tanggal_haul']} — "
+                  f"{status['hari_lagi']} hari lagi.")
+    else:
+        print("Zakat mal — belum ada catatan harta.")
+        print("  Catat dulu dengan: zakatku harta catat --tanggal YYYY-MM-DD "
+              "--tabungan N [--emas-gram N]")
+
+    if args.penghasilan is not None:
+        ada_info = True
+        hasil = zakat.zakat_profesi(args.penghasilan, data["config"]["harga_emas"])
+        print(f"Zakat profesi — penghasilan {zakat.format_rupiah(args.penghasilan)} "
+              f"vs nisab bulanan {zakat.format_rupiah(hasil['nisab'])}:")
+        if hasil["wajib"]:
+            print(f"  Sudah mencapai nisab — zakat {zakat.format_rupiah(hasil['jumlah'])} "
+                  f"wajib dibayar bulan ini.")
+        else:
+            print("  Belum mencapai nisab — belum wajib zakat bulan ini.")
+
+    if args.idulfitri is not None:
+        ada_info = True
+        sisa = pengingat.hitung_mundur_fitrah(args.idulfitri, hari_ini)
+        if sisa > 0:
+            print(f"Zakat fitrah — Idulfitri {sisa} hari lagi "
+                  f"({args.idulfitri.isoformat()}). Bayar sebelum salat Id.")
+        elif sisa == 0:
+            print("Zakat fitrah — Idulfitri hari ini! Bayar sebelum salat Id.")
+        else:
+            print(f"Zakat fitrah — Idulfitri sudah lewat {-sisa} hari lalu.")
+
+    if not ada_info:
+        print("Tidak ada yang bisa diingatkan: belum ada catatan harta, "
+              "--penghasilan, atau --idulfitri.", file=sys.stderr)
+        print("Contoh: zakatku ingatkan --penghasilan 20000000 "
+              "--idulfitri 2027-03-20", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv=None):
     parser = _buat_parser()
     args = parser.parse_args(argv)
@@ -230,6 +336,12 @@ def main(argv=None):
         return _cmd_bayar_catat(data, args.data, args)
     if args.perintah == "laporan":
         return _cmd_laporan(data, args)
+    if args.perintah == "harta" and args.aksi_harta == "catat":
+        return _cmd_harta_catat(data, args.data, args)
+    if args.perintah == "harta" and args.aksi_harta == "lihat":
+        return _cmd_harta_lihat(data)
+    if args.perintah == "ingatkan":
+        return _cmd_ingatkan(data, args)
     parser.error("perintah tidak dikenal")
     return 1
 
