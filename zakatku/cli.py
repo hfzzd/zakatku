@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import date
 
-from . import __version__, model, pengingat, zakat
+from . import __version__, export, model, pengingat, zakat
 
 
 def _angka(teks):
@@ -111,6 +111,14 @@ def _buat_parser():
                             help="Penghasilan bulanan (Rp) untuk cek nisab profesi.")
     p_ingatkan.add_argument("--idulfitri", type=_tanggal, default=None,
                             help="Tanggal Idulfitri (YYYY-MM-DD) untuk hitung mundur fitrah.")
+
+    p_ekspor = sub.add_parser("ekspor", help="Ekspor data ke CSV.")
+    p_ekspor.add_argument("--jenis", choices=("pembayaran", "laporan"), required=True,
+                          help="Jenis ekspor: pembayaran atau laporan.")
+    p_ekspor.add_argument("--tahun", type=_tahun, default=None,
+                          help="Tahun (wajib untuk laporan; opsional untuk pembayaran).")
+    p_ekspor.add_argument("--keluar", default=None,
+                          help="Tulis ke file (bila kosong, tampil di layar).")
     return parser
 
 
@@ -317,6 +325,38 @@ def _cmd_ingatkan(data, args):
     return 0
 
 
+def _cmd_ekspor(data, args):
+    pembayaran = data.get("pembayaran", [])
+    if args.jenis == "laporan":
+        if args.tahun is None:
+            print("Ekspor laporan butuh --tahun, contoh: zakatku ekspor "
+                  "--jenis laporan --tahun 2026", file=sys.stderr)
+            return 1
+        isi = export.csv_laporan(pembayaran, args.tahun)
+        if sum(1 for p in pembayaran
+               if str(p.get("tanggal", "")).startswith(str(args.tahun) + "-")) == 0:
+            print(f"Belum ada pembayaran zakat yang tercatat di tahun {args.tahun}.",
+                  file=sys.stderr)
+            return 1
+    else:
+        if args.tahun is not None:
+            pembayaran = [p for p in pembayaran
+                          if str(p.get("tanggal", "")).startswith(str(args.tahun) + "-")]
+        if not pembayaran:
+            print("Belum ada pembayaran zakat yang tercatat.", file=sys.stderr)
+            print("Catat pembayaran dengan: zakatku bayar catat --jenis ... "
+                  "--jumlah N --tanggal YYYY-MM-DD", file=sys.stderr)
+            return 1
+        isi = export.csv_pembayaran(pembayaran)
+    if args.keluar:
+        with open(args.keluar, "w", encoding="utf-8", newline="") as f:
+            f.write(isi)
+        print(f"Diekspor ke {args.keluar}.")
+    else:
+        print(isi, end="")
+    return 0
+
+
 def main(argv=None):
     parser = _buat_parser()
     args = parser.parse_args(argv)
@@ -342,6 +382,8 @@ def main(argv=None):
         return _cmd_harta_lihat(data)
     if args.perintah == "ingatkan":
         return _cmd_ingatkan(data, args)
+    if args.perintah == "ekspor":
+        return _cmd_ekspor(data, args)
     parser.error("perintah tidak dikenal")
     return 1
 
