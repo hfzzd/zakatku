@@ -97,6 +97,11 @@ def _buat_parser():
     return parser
 
 
+def _rapi(nilai):
+    """Tampilkan angka tanpa .0 bila bulat (10.0 -> 10)."""
+    return int(nilai) if float(nilai) == int(nilai) else nilai
+
+
 def _cmd_config_lihat(data):
     cfg = data["config"]
     harga_emas = cfg["harga_emas"]
@@ -142,7 +147,7 @@ def _cmd_hitung_fitrah(data, args):
     print(f"Jumlah jiwa         : {hasil['jiwa']} jiwa")
     print(f"Per jiwa            : {hasil['kg_per_jiwa']} kg beras = "
           f"{zakat.format_rupiah(hasil['per_jiwa'])}")
-    print(f"Total               : {hasil['total_kg']} kg beras = "
+    print(f"Total               : {_rapi(hasil['total_kg'])} kg beras = "
           f"{zakat.format_rupiah(hasil['jumlah'])}")
     print("Dibayar di bulan Ramadan, sebelum salat Idulfitri.")
     return 0
@@ -152,7 +157,7 @@ def _cmd_hitung_mal(data, args):
     hasil = zakat.zakat_mal(args.tabungan, args.emas_gram,
                             data["config"]["harga_emas"])
     print(f"Tabungan            : {zakat.format_rupiah(hasil['tabungan'])}")
-    print(f"Emas                : {hasil['emas_gram']} gram = "
+    print(f"Emas                : {_rapi(hasil['emas_gram'])} gram = "
           f"{zakat.format_rupiah(hasil['nilai_emas'])}")
     print(f"Total harta         : {zakat.format_rupiah(hasil['total'])}")
     print(f"Nisab tahunan       : {zakat.format_rupiah(hasil['nisab'])}")

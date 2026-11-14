@@ -89,9 +89,36 @@ python -m zakatku bayar catat --jenis fitrah --jumlah 136930 --tanggal 2026-03-2
 python -m zakatku laporan --tahun 2026
 ```
 
+## Data contoh
+
+File `contoh/zakatku-contoh.json` berisi harga acuan bawaan plus tiga
+contoh pembayaran yang semuanya cocok hitungan tangan: zakat profesi
+Rp500.000 (2,5% × Rp20.000.000), zakat fitrah Rp136.932 (4 jiwa ×
+Rp34.233), dan zakat mal Rp6.877.250 (2,5% × Rp275.090.000 — tabungan
+Rp250.000.000 + emas 10 gram). Coba sendiri:
+
+```bash
+# Salin ke folder kerja lalu lihat laporannya (total Rp7.514.182)
+cp contoh/zakatku-contoh.json zakatku.json
+python -m zakatku laporan --tahun 2026
+
+# Atau pakai langsung tanpa menyalin
+python -m zakatku --data contoh/zakatku-contoh.json laporan --tahun 2026
+```
+
+## Menjalankan test
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+Ada 24 test: aturan hitung (nisab, profesi, fitrah, mal, format
+rupiah, pembulatan half-up) dan alur CLI end-to-end (config, hitung,
+bayar catat, laporan, input salah).
+
 ## Rencana
 
 - [x] Zakat profesi & zakat fitrah + CLI dasar
 - [x] Zakat mal + pencatatan pembayaran + laporan tahunan
-- [ ] Unit test + data contoh + polish CLI
+- [x] Unit test + data contoh + polish CLI
 - [ ] Pengingat haul & nisab, ekspor CSV

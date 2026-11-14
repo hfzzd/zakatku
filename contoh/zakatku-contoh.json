@@ -1,0 +1,26 @@
+{
+  "config": {
+    "harga_beras": 13693,
+    "harga_emas": 2509000
+  },
+  "pembayaran": [
+    {
+      "catatan": "Zakat profesi November 2026 (2,5% x Rp20.000.000)",
+      "jenis": "profesi",
+      "jumlah": 500000,
+      "tanggal": "2026-11-14"
+    },
+    {
+      "catatan": "Zakat fitrah 4 jiwa (4 x Rp34.233), via masjid",
+      "jenis": "fitrah",
+      "jumlah": 136932,
+      "tanggal": "2026-03-20"
+    },
+    {
+      "catatan": "Zakat mal (2,5% x Rp275.090.000: tabungan Rp250.000.000 + emas 10 gram)",
+      "jenis": "mal",
+      "jumlah": 6877250,
+      "tanggal": "2026-11-14"
+    }
+  ]
+}
