@@ -7,6 +7,22 @@ from .zakat import HARGA_BERAS_DEFAULT, HARGA_EMAS_DEFAULT
 
 DEFAULT_DATA_FILE = "zakatku.json"
 
+# Jenis zakat yang dikenal untuk pencatatan pembayaran.
+JENIS_ZAKAT = ("profesi", "mal", "fitrah")
+
+
+def tambah_pembayaran(data, jenis, jumlah, tanggal, catatan=None):
+    """Tambah satu pembayaran ke data["pembayaran"].
+
+    Memanggil fungsi ini mengasumsikan jenis sudah dikenal, jumlah > 0,
+    dan tanggal sudah dalam format YYYY-MM-DD yang valid.
+    """
+    entri = {"jenis": jenis, "jumlah": jumlah, "tanggal": tanggal}
+    if catatan:
+        entri["catatan"] = catatan
+    data.setdefault("pembayaran", []).append(entri)
+    return entri
+
 
 def _data_kosong():
     return {

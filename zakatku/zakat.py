@@ -50,6 +50,30 @@ def zakat_profesi(penghasilan, harga_emas):
     }
 
 
+def zakat_mal(tabungan, emas_gram, harga_emas):
+    """Zakat mal dari tabungan dan emas.
+
+    Total harta = tabungan + emas_gram × harga_emas. Wajib bila total
+    harta mencapai nisab tahunan (85 gram emas) dan sudah haul 1 tahun;
+    zakatnya 2,5% dari total harta. Mengembalikan dict dengan kunci:
+    wajib, nisab, tabungan, emas_gram, nilai_emas, total, jumlah.
+    """
+    nilai_emas = emas_gram * harga_emas
+    total = tabungan + nilai_emas
+    nisab = nisab_tahunan(harga_emas)
+    wajib = total >= nisab
+    jumlah = _bulat_rupiah(total * KADAR_ZAKAT) if wajib else 0
+    return {
+        "wajib": wajib,
+        "nisab": nisab,
+        "tabungan": tabungan,
+        "emas_gram": emas_gram,
+        "nilai_emas": nilai_emas,
+        "total": total,
+        "jumlah": jumlah,
+    }
+
+
 def zakat_fitrah(jiwa, harga_beras):
     """Zakat fitrah: 2,5 kg beras per jiwa, dinilai dengan harga beras.
 

@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from datetime import date
 
 from . import __version__, model, zakat
 
@@ -25,6 +26,23 @@ def _bilangan_bulat(teks):
     if nilai != int(nilai):
         raise argparse.ArgumentTypeError("harus bilangan bulat, contoh: 4.")
     return int(nilai)
+
+
+def _tanggal(teks):
+    """Ubah teks menjadi tanggal; tolak bila bukan YYYY-MM-DD yang valid."""
+    try:
+        return date.fromisoformat(teks)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"'{teks}' bukan tanggal yang valid — pakai format YYYY-MM-DD, contoh: 2026-11-14."
+        )
+
+
+def _tahun(teks):
+    nilai = _bilangan_bulat(teks)
+    if nilai < 1 or nilai > 9999:
+        raise argparse.ArgumentTypeError("tahun harus antara 1 dan 9999.")
+    return nilai
 
 
 def _buat_parser():
@@ -55,6 +73,27 @@ def _buat_parser():
     p_fitrah = sub_hitung.add_parser("fitrah", help="Zakat fitrah.")
     p_fitrah.add_argument("--jiwa", type=_bilangan_bulat, required=True,
                           help="Jumlah jiwa.")
+    p_mal = sub_hitung.add_parser("mal", help="Zakat mal (tabungan & emas).")
+    p_mal.add_argument("--tabungan", type=_angka, required=True,
+                       help="Saldo tabungan (Rp).")
+    p_mal.add_argument("--emas-gram", type=_angka, default=0,
+                       help="Berat emas yang dimiliki (gram).")
+
+    p_bayar = sub.add_parser("bayar", help="Catat pembayaran zakat.")
+    sub_bayar = p_bayar.add_subparsers(dest="aksi_bayar", required=True)
+    p_catat = sub_bayar.add_parser("catat", help="Catat satu pembayaran zakat.")
+    p_catat.add_argument("--jenis", choices=model.JENIS_ZAKAT, required=True,
+                         help="Jenis zakat: profesi, mal, atau fitrah.")
+    p_catat.add_argument("--jumlah", type=_angka, required=True,
+                         help="Jumlah yang dibayar (Rp, harus > 0).")
+    p_catat.add_argument("--tanggal", type=_tanggal, required=True,
+                         help="Tanggal pembayaran (YYYY-MM-DD).")
+    p_catat.add_argument("--catatan", default=None,
+                         help="Catatan tambahan (opsional).")
+
+    p_laporan = sub.add_parser("laporan", help="Laporan pembayaran zakat setahun.")
+    p_laporan.add_argument("--tahun", type=_tahun, required=True,
+                           help="Tahun laporan (YYYY).")
     return parser
 
 
@@ -109,6 +148,64 @@ def _cmd_hitung_fitrah(data, args):
     return 0
 
 
+def _cmd_hitung_mal(data, args):
+    hasil = zakat.zakat_mal(args.tabungan, args.emas_gram,
+                            data["config"]["harga_emas"])
+    print(f"Tabungan            : {zakat.format_rupiah(hasil['tabungan'])}")
+    print(f"Emas                : {hasil['emas_gram']} gram = "
+          f"{zakat.format_rupiah(hasil['nilai_emas'])}")
+    print(f"Total harta         : {zakat.format_rupiah(hasil['total'])}")
+    print(f"Nisab tahunan       : {zakat.format_rupiah(hasil['nisab'])}")
+    if hasil["wajib"]:
+        print(f"Zakat mal (2,5%)    : {zakat.format_rupiah(hasil['jumlah'])} — wajib dibayar.")
+        print("Pastikan harta sudah haul 1 tahun sebelum membayar.")
+    else:
+        print("Belum wajib zakat: total harta di bawah nisab tahunan.")
+        print("Tetap boleh berinfak bila berkenan.")
+    return 0
+
+
+def _cmd_bayar_catat(data, path, args):
+    if args.jumlah <= 0:
+        print("Jumlah harus lebih dari 0.", file=sys.stderr)
+        return 1
+    tanggal = args.tanggal.isoformat()
+    model.tambah_pembayaran(data, args.jenis, args.jumlah, tanggal, args.catatan)
+    model.simpan(path, data)
+    print(f"Tercatat: zakat {args.jenis} {zakat.format_rupiah(args.jumlah)} "
+          f"pada {tanggal}.")
+    if args.catatan:
+        print(f"Catatan: {args.catatan}")
+    return 0
+
+
+def _cmd_laporan(data, args):
+    tahun = str(args.tahun)
+    bayar = [p for p in data.get("pembayaran", [])
+             if p.get("tanggal", "").startswith(tahun + "-")]
+    if not bayar:
+        print(f"Belum ada pembayaran zakat yang tercatat di tahun {tahun}.")
+        print("Catat pembayaran dengan: zakatku bayar catat --jenis ... "
+              "--jumlah N --tanggal YYYY-MM-DD")
+        return 0
+    total_per_jenis = {}
+    for p in bayar:
+        total_per_jenis[p["jenis"]] = total_per_jenis.get(p["jenis"], 0) + p["jumlah"]
+    print(f"Laporan zakat tahun {tahun}:")
+    for jenis in model.JENIS_ZAKAT:
+        if jenis in total_per_jenis:
+            print(f"  {jenis:<8}: {zakat.format_rupiah(total_per_jenis[jenis])}")
+    print(f"  Total   : {zakat.format_rupiah(sum(total_per_jenis.values()))}")
+    print()
+    print("Pembayaran:")
+    for p in sorted(bayar, key=lambda x: x["tanggal"]):
+        baris = f"  {p['tanggal']}  {p['jenis']:<8} {zakat.format_rupiah(p['jumlah'])}"
+        if p.get("catatan"):
+            baris += f"  ({p['catatan']})"
+        print(baris)
+    return 0
+
+
 def main(argv=None):
     parser = _buat_parser()
     args = parser.parse_args(argv)
@@ -122,6 +219,12 @@ def main(argv=None):
         return _cmd_hitung_profesi(data, args)
     if args.perintah == "hitung" and args.jenis == "fitrah":
         return _cmd_hitung_fitrah(data, args)
+    if args.perintah == "hitung" and args.jenis == "mal":
+        return _cmd_hitung_mal(data, args)
+    if args.perintah == "bayar" and args.aksi_bayar == "catat":
+        return _cmd_bayar_catat(data, args.data, args)
+    if args.perintah == "laporan":
+        return _cmd_laporan(data, args)
     parser.error("perintah tidak dikenal")
     return 1
 

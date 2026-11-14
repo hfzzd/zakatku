@@ -59,9 +59,39 @@ python -m zakatku laporan --tahun 2026
 Data tersimpan di `zakatku.json` di folder kerja (atau file lain lewat
 `--data`, atau variabel lingkungan `ZAKATKU_DATA`).
 
+### Zakat mal
+
+Zakat mal dihitung dari total harta: tabungan ditambah nilai emas yang
+dimiliki (berat emas × harga emas per gram). Wajib dibayar bila total
+harta mencapai nisab tahunan (85 gram emas) dan sudah haul 1 tahun,
+dengan kadar 2,5% dari total harta.
+
+```bash
+# Contoh: tabungan Rp250.000.000 + emas 10 gram
+python -m zakatku hitung mal --tabungan 250000000 --emas-gram 10
+# Total harta Rp275.090.000 ≥ nisab Rp213.265.000 → zakat Rp6.877.250
+```
+
+### Mencatat pembayaran & laporan tahunan
+
+Setiap zakat yang sudah ditunaikan bisa dicatat, lalu dilihat
+rekapnya per tahun — total per jenis zakat, total keseluruhan, dan
+daftar pembayarannya.
+
+```bash
+# Catat pembayaran zakat mal Rp6.877.250 pada 14 Nov 2026
+python -m zakatku bayar catat --jenis mal --jumlah 6877250 --tanggal 2026-11-14
+
+# Catat dengan catatan tambahan
+python -m zakatku bayar catat --jenis fitrah --jumlah 136930 --tanggal 2026-03-20 --catatan "4 jiwa, via masjid"
+
+# Laporan semua pembayaran di tahun 2026
+python -m zakatku laporan --tahun 2026
+```
+
 ## Rencana
 
 - [x] Zakat profesi & zakat fitrah + CLI dasar
-- [ ] Zakat mal + pencatatan pembayaran + laporan tahunan
+- [x] Zakat mal + pencatatan pembayaran + laporan tahunan
 - [ ] Unit test + data contoh + polish CLI
 - [ ] Pengingat haul & nisab, ekspor CSV
