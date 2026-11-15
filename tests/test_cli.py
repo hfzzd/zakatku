@@ -47,7 +47,7 @@ class TestCLI(unittest.TestCase):
         hasil = jalankan("--version", cwd=self.tmp.name)
         self.assertEqual(hasil.returncode, 0)
         self.assertIn(__version__, hasil.stdout)
-        self.assertIn("0.1.0", hasil.stdout)
+        self.assertIn("0.2.0", hasil.stdout)
 
     def test_alur_lengkap(self):
         """config lihat -> hitung profesi/fitrah/mal -> bayar catat -> laporan."""

@@ -54,6 +54,16 @@ python -m zakatku bayar catat --jenis profesi --jumlah 250000 --tanggal 2026-11-
 
 # Laporan zakat tahun 2026
 python -m zakatku laporan --tahun 2026
+
+# Catat harta mencapai nisab, untuk pengingat haul
+python -m zakatku harta catat --tanggal 2026-11-15 --tabungan 250000000 --emas-gram 10
+
+# Pengingat: haul zakat mal, nisab profesi, hitung mundur Idulfitri
+python -m zakatku ingatkan --penghasilan 20000000 --idulfitri 2027-03-20
+
+# Ekspor pembayaran dan laporan 2026 ke CSV
+python -m zakatku ekspor --jenis pembayaran --keluar pembayaran.csv
+python -m zakatku ekspor --jenis laporan --tahun 2026 --keluar laporan-2026.csv
 ```
 
 Data tersimpan di `zakatku.json` di folder kerja (atau file lain lewat
@@ -89,6 +99,78 @@ python -m zakatku bayar catat --jenis fitrah --jumlah 136930 --tanggal 2026-03-2
 python -m zakatku laporan --tahun 2026
 ```
 
+## Pengingat haul & nisab
+
+Zakat mal baru wajib setelah harta mencapai nisab **dan** sudah haul —
+kepemilikan selama 1 tahun Hijriah, dihitung **354 hari**. Supaya tidak
+lupa, catat tanggal hartamu pertama kali mencapai nisab; ZakatKu akan
+menghitung tanggal haulnya dan mengingatkanmu.
+
+```bash
+# Catat harta mencapai nisab 15 Nov 2026 (tabungan Rp250.000.000 + emas 10 gram)
+python -m zakatku harta catat --tanggal 2026-11-15 --tabungan 250000000 --emas-gram 10
+# Tercatat: harta Rp275.090.000 mencapai nisab pada 2026-11-15.
+# Haul (1 tahun Hijriah) tercapai pada 2027-11-04.
+
+# Lihat riwayat catatan harta
+python -m zakatku harta lihat
+# Riwayat catatan harta (tanggal mencapai nisab):
+#   2026-11-15  total Rp275.090.000 (tabungan Rp250.000.000, emas 10 gram)
+```
+
+Catatan di bawah nisab ditolak dengan pesan ramah — belum perlu dicatat
+sampai total harta mencapai nisab tahunan Rp213.265.000.
+
+Perintah `ingatkan` menampilkan status haul, mengecek nisab profesi
+dari penghasilan bulanan, dan menghitung mundur ke Idulfitri untuk
+zakat fitrah. Jumlah hari dihitung dari tanggal hari ini, jadi
+angkanya berubah setiap hari — contoh di bawah dijalankan 15 Nov 2026:
+
+```bash
+python -m zakatku ingatkan --penghasilan 20000000 --idulfitri 2027-03-20
+# Zakat mal — harta mencapai nisab pada 2026-11-15.
+#   Haul tercapai 2027-11-04 — 354 hari lagi.
+# Zakat profesi — penghasilan Rp20.000.000 vs nisab bulanan Rp17.772.083:
+#   Sudah mencapai nisab — zakat Rp500.000 wajib dibayar bulan ini.
+# Zakat fitrah — Idulfitri 125 hari lagi (2027-03-20). Bayar sebelum salat Id.
+```
+
+Ketiga bagian boleh dipakai sendiri-sendiri: `ingatkan` tanpa argumen
+menampilkan status haul dari catatan harta; tambah `--penghasilan N`
+untuk cek nisab profesi (contoh: Rp10.000.000 → belum wajib), dan
+`--idulfitri YYYY-MM-DD` untuk hitung mundur fitrah (0 bila hari ini,
+negatif bila sudah lewat). Input yang salah ditolak dengan pesan yang
+jelas, contohnya `--penghasilan abc` atau `--idulfitri 20-03-2027`.
+
+## Ekspor CSV
+
+Dua jenis ekspor, keduanya bisa ditampilkan di layar atau ditulis ke
+file dengan `--keluar`. Contoh di bawah memakai data contoh
+(`contoh/zakatku-contoh.json`) lewat `--data`, jadi bisa dicoba tanpa
+menyalin apa pun:
+
+```bash
+# Ekspor seluruh pembayaran (urut tanggal)
+python -m zakatku --data contoh/zakatku-contoh.json ekspor --jenis pembayaran
+# tanggal,jenis,jumlah,catatan
+# 2026-03-20,fitrah,136932,"Zakat fitrah 4 jiwa (4 x Rp34.233), via masjid"
+# 2026-11-14,profesi,500000,"Zakat profesi November 2026 (2,5% x Rp20.000.000)"
+# 2026-11-14,mal,6877250,"Zakat mal (2,5% x Rp275.090.000: tabungan Rp250.000.000 + emas 10 gram)"
+
+# Ekspor rekap setahun (total per jenis + baris TOTAL)
+python -m zakatku --data contoh/zakatku-contoh.json ekspor --jenis laporan --tahun 2026
+# jenis,jumlah
+# profesi,500000
+# mal,6877250
+# fitrah,136932
+# TOTAL,7514182
+```
+
+Cek hitungan tangan: 500.000 + 6.877.250 + 136.932 = **7.514.182**,
+cocok dengan total laporan tahun 2026. Ekspor laporan wajib memakai
+`--tahun`; ekspor tanpa data tercatat ditolak dengan pesan ramah.
+File CSV-nya bisa dibuka langsung di Excel atau LibreOffice Calc.
+
 ## Data contoh
 
 File `contoh/zakatku-contoh.json` berisi harga acuan bawaan plus tiga
@@ -112,13 +194,18 @@ python -m zakatku --data contoh/zakatku-contoh.json laporan --tahun 2026
 python3 -m unittest discover -s tests
 ```
 
-Ada 24 test: aturan hitung (nisab, profesi, fitrah, mal, format
-rupiah, pembulatan half-up) dan alur CLI end-to-end (config, hitung,
-bayar catat, laporan, input salah).
+Ada 55 test: aturan hitung (nisab, profesi, fitrah, mal, format
+rupiah, pembulatan half-up), pengingat haul (tanggal haul 354 hari,
+status haul, hitung mundur fitrah), ekspor CSV (pembayaran & laporan),
+dan alur CLI end-to-end (config, hitung, bayar catat, laporan, harta
+catat, ingatkan, ekspor, input salah).
 
 ## Rencana
 
 - [x] Zakat profesi & zakat fitrah + CLI dasar
 - [x] Zakat mal + pencatatan pembayaran + laporan tahunan
 - [x] Unit test + data contoh + polish CLI
-- [ ] Pengingat haul & nisab, ekspor CSV
+- [x] Pengingat haul & nisab, ekspor CSV
+- [ ] Pengingat jadwal catat harta berkala
+- [ ] Mode interaktif (tanya-jawab langkah demi langkah)
+- [ ] Ringkasan multi-tahun
