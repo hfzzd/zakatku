@@ -176,5 +176,111 @@ class TestCLI(unittest.TestCase):
         self.assertNotEqual(hasil.returncode, 0)
 
 
+class TestCLIPengingatDanEkspor(unittest.TestCase):
+    """harta catat / ingatkan / ekspor lewat CLI di folder sementara."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.data = os.path.join(self.tmp.name, "zakatku.json")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _cli(self, *args):
+        return jalankan("--data", self.data, *args, cwd=self.tmp.name)
+
+    def _catat_tiga_pembayaran_contoh(self):
+        """Tiga pembayaran contoh Day-1; laporan 2026 = Rp7.514.182."""
+        for jenis, jumlah, tanggal in [
+            ("profesi", "500000", "2026-11-14"),
+            ("fitrah", "136932", "2026-03-20"),
+            ("mal", "6877250", "2026-11-14"),
+        ]:
+            hasil = self._cli(
+                "bayar", "catat", "--jenis", jenis,
+                "--jumlah", jumlah, "--tanggal", tanggal,
+            )
+            self.assertEqual(hasil.returncode, 0, hasil.stderr)
+
+    def test_harta_catat_di_bawah_nisab_ditolak_exit_1(self):
+        hasil = self._cli(
+            "harta", "catat", "--tanggal", "2026-11-14",
+            "--tabungan", "100000000",
+        )
+        self.assertEqual(hasil.returncode, 1)
+        self.assertIn("di bawah nisab", hasil.stderr)
+        # Ditolak sebelum simpan: file data boleh belum ada (belum pernah
+        # tersimpan), atau bila ada, riwayat hartanya kosong.
+        if os.path.exists(self.data):
+            with open(self.data, encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["harta"], [])
+
+    def test_harta_catat_lalu_ingatkan(self):
+        # Tabungan 250jt + emas 10 gram >= nisab Rp213.265.000.
+        hasil = self._cli(
+            "harta", "catat", "--tanggal", "2026-11-14",
+            "--tabungan", "250000000", "--emas-gram", "10",
+        )
+        self.assertEqual(hasil.returncode, 0, hasil.stderr)
+        self.assertIn("Tercatat", hasil.stdout)
+        self.assertIn("2027-11-03", hasil.stdout)  # haul = +354 hari
+
+        hasil = self._cli("harta", "lihat")
+        self.assertEqual(hasil.returncode, 0)
+        self.assertIn("2026-11-14", hasil.stdout)
+        self.assertIn("Rp275.090.000", hasil.stdout)
+
+        hasil = self._cli("ingatkan")
+        self.assertEqual(hasil.returncode, 0)
+        self.assertIn("2026-11-14", hasil.stdout)
+        self.assertIn("hari lagi", hasil.stdout)
+
+    def test_ingatkan_tanpa_data_ditolak_exit_1(self):
+        hasil = self._cli("ingatkan")
+        self.assertEqual(hasil.returncode, 1)
+        self.assertIn("Tidak ada yang bisa diingatkan", hasil.stderr)
+
+    def test_ekspor_laporan_tanpa_tahun_ditolak_exit_1(self):
+        self._catat_tiga_pembayaran_contoh()
+        hasil = self._cli("ekspor", "--jenis", "laporan")
+        self.assertEqual(hasil.returncode, 1)
+        self.assertIn("--tahun", hasil.stderr)
+
+    def test_ekspor_tanpa_data_ditolak_exit_1(self):
+        hasil = self._cli("ekspor", "--jenis", "pembayaran")
+        self.assertEqual(hasil.returncode, 1)
+        self.assertIn("Belum ada pembayaran", hasil.stderr)
+
+    def test_ekspor_keluar_menulis_file(self):
+        self._catat_tiga_pembayaran_contoh()
+
+        keluar_bayar = os.path.join(self.tmp.name, "pembayaran.csv")
+        hasil = self._cli(
+            "ekspor", "--jenis", "pembayaran", "--keluar", keluar_bayar,
+        )
+        self.assertEqual(hasil.returncode, 0, hasil.stderr)
+        self.assertIn("Diekspor ke", hasil.stdout)
+        with open(keluar_bayar, encoding="utf-8") as f:
+            isi = f.read()
+        self.assertIn("tanggal,jenis,jumlah,catatan", isi)
+        # Urut tanggal: fitrah 2026-03-20 paling dulu.
+        self.assertLess(
+            isi.index("2026-03-20"), isi.index("2026-11-14")
+        )
+        self.assertIn("2026-11-14,mal,6877250", isi)
+
+        keluar_laporan = os.path.join(self.tmp.name, "laporan-2026.csv")
+        hasil = self._cli(
+            "ekspor", "--jenis", "laporan", "--tahun", "2026",
+            "--keluar", keluar_laporan,
+        )
+        self.assertEqual(hasil.returncode, 0, hasil.stderr)
+        with open(keluar_laporan, encoding="utf-8") as f:
+            isi = f.read()
+        self.assertIn("TOTAL,7514182", isi)
+        self.assertIn("profesi,500000", isi)
+
+
 if __name__ == "__main__":
     unittest.main()
